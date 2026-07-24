@@ -15,14 +15,42 @@
       </div>
     </div>
     <div class="actions">
-      <select id="sheetSelect" title="Planillas guardadas"></select>
-      <button id="btnNew" class="btn">Nueva</button>
-      <button id="btnSave" class="btn">Guardar</button>
-      <button id="btnDelete" class="btn btn-ghost">Eliminar</button>
+      <button id="btnHome" class="btn hidden">← Inicio</button>
+      <span id="currentName" class="current-name hidden"></span>
+      <button id="btnSave" class="btn hidden">Guardar</button>
     </div>
   </header>
 
-  <main class="layout">
+  <!-- Pantalla de inicio -->
+  <section id="homeView" class="home">
+    <!-- Nivel 1: elegir qué hacer -->
+    <div id="homeChoice" class="home-inner">
+      <h1 class="home-title">¿Qué quieres hacer?</h1>
+      <div class="home-cards">
+        <button id="cardNew" class="home-card">
+          <span class="home-card-icon">＋</span>
+          <span class="home-card-title">Nueva planilla</span>
+          <span class="home-card-desc">Empieza una planilla en blanco</span>
+        </button>
+        <button id="cardOpen" class="home-card">
+          <span class="home-card-icon">🗂</span>
+          <span class="home-card-title">Abrir existente</span>
+          <span class="home-card-desc" id="cardOpenDesc">Continúa una planilla guardada</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Nivel 2: lista de planillas guardadas -->
+    <div id="homeList" class="home-inner hidden">
+      <div class="home-list-head">
+        <button id="btnBackChoice" class="btn btn-sm">← Volver</button>
+        <h1 class="home-title">Planillas guardadas</h1>
+      </div>
+      <div id="sheetList" class="sheet-list"><!-- generado por JS --></div>
+    </div>
+  </section>
+
+  <main class="layout hidden">
     <!-- Panel de formulario -->
     <section class="form-pane">
       <fieldset class="card">

@@ -248,6 +248,7 @@
       store.header.signature = getSignature();
       persist();
     }, 500);
+    if (enEditor) sinGuardar = true;
     scheduleLivePreview(); // refresca la vista previa al cambiar cabecera/celdas/firma
   }
 
@@ -304,15 +305,50 @@
   // ---------------- Planillas (persistencia) ----------------
   function persist() { window.api.saveData(store); }
 
-  function refreshSheetSelect() {
-    const sel = $('sheetSelect');
-    sel.innerHTML = '';
-    store.sheets.forEach((s, idx) => {
-      const o = document.createElement('option');
-      o.value = idx; o.textContent = s.name || `Planilla ${idx + 1}`;
-      sel.appendChild(o);
-    });
-    if (current && current._idx != null) sel.value = current._idx;
+  // ---------------- Navegación entre vistas ----------------
+  let enEditor = false;   // el preview en vivo solo corre dentro del editor
+  let sinGuardar = false; // hay cambios pendientes en la planilla abierta
+
+  function showHome(mostrarLista) {
+    enEditor = false;
+    clearTimeout(previewTimer);
+    $('homeView').classList.remove('hidden');
+    document.querySelector('.layout').classList.add('hidden');
+    ['btnHome', 'btnSave', 'currentName'].forEach(id => $(id).classList.add('hidden'));
+
+    const n = store.sheets.length;
+    const hayPlanillas = n > 0;
+    $('cardOpen').disabled = !hayPlanillas;
+    $('cardOpenDesc').textContent = !hayPlanillas
+      ? 'No hay planillas guardadas'
+      : (n === 1 ? 'Tienes 1 planilla guardada' : `Tienes ${n} planillas guardadas`);
+
+    const verLista = !!mostrarLista && hayPlanillas;
+    $('homeChoice').classList.toggle('hidden', verLista);
+    $('homeList').classList.toggle('hidden', !verLista);
+    if (verLista) renderSheetList();
+  }
+
+  function showEditor() {
+    enEditor = true;
+    $('homeView').classList.add('hidden');
+    document.querySelector('.layout').classList.remove('hidden');
+    ['btnHome', 'btnSave', 'currentName'].forEach(id => $(id).classList.remove('hidden'));
+    updateCurrentName();
+    scheduleLivePreview();
+  }
+
+  function updateCurrentName() {
+    $('currentName').textContent = current
+      ? (current.name || 'Planilla sin guardar')
+      : '';
+  }
+
+  // Vuelve al inicio avisando si quedan cambios sin guardar
+  function goHome() {
+    if (sinGuardar && !confirm('Tienes cambios sin guardar. ¿Salir de todos modos?')) return;
+    sinGuardar = false;
+    showHome(false);
   }
 
   function newSheet() {
@@ -334,7 +370,8 @@
     applySignatureUI();
     for (let i = 0; i < ROWS; i++) current.rows[i] = {};
     renderRows();
-    toast('Nueva planilla');
+    sinGuardar = false;
+    showEditor();
   }
 
   function saveSheet() {
@@ -353,7 +390,8 @@
     }
     store.header = Object.assign({}, current.header, { signature: current.signature });
     persist();
-    refreshSheetSelect();
+    sinGuardar = false;
+    updateCurrentName();
     toast('Planilla guardada');
   }
 
@@ -371,16 +409,131 @@
     if (!current.rows) current.rows = [];
     for (let i = 0; i < ROWS; i++) if (!current.rows[i]) current.rows[i] = {};
     renderRows();
+    sinGuardar = false;
+    showEditor();
   }
 
-  function deleteSheet() {
-    if (current._idx == null) { newSheet(); return; }
-    if (!confirm('¿Eliminar esta planilla guardada?')) return;
-    store.sheets.splice(current._idx, 1);
+  // ---------------- Lista de planillas guardadas ----------------
+  // Cuenta los días con algún dato registrado
+  function diasConDatos(s) {
+    return (s.rows || []).filter(r => r && Object.values(r).some(v => String(v || '').trim() !== '')).length;
+  }
+
+  function fechaGuardado(s) {
+    if (!s.savedAt) return 'sin fecha';
+    const d = new Date(s.savedAt);
+    return isNaN(d) ? 'sin fecha' : d.toLocaleDateString('es-PE');
+  }
+
+  function renderSheetList() {
+    const cont = $('sheetList');
+    cont.innerHTML = '';
+    if (!store.sheets.length) {
+      cont.innerHTML = '<div class="home-empty">No hay planillas guardadas.</div>';
+      return;
+    }
+    store.sheets.forEach((s, idx) => {
+      const meta = [
+        (s.header && s.header.mes) ? s.header.mes : null,
+        `${diasConDatos(s)} día(s) con datos`,
+        `guardada el ${fechaGuardado(s)}`
+      ].filter(Boolean).join(' · ');
+
+      const item = document.createElement('div');
+      item.className = 'sheet-item';
+      item.dataset.idx = idx;
+      item.innerHTML =
+        `<div class="sheet-info">` +
+          `<div class="sheet-name"></div>` +
+          `<div class="sheet-meta"></div>` +
+        `</div>` +
+        `<div class="sheet-actions">` +
+          `<button class="btn btn-sm" data-act="open">Abrir</button>` +
+          `<button class="btn btn-sm" data-act="rename">Renombrar</button>` +
+          `<button class="btn btn-sm" data-act="dup">Duplicar</button>` +
+          `<button class="btn btn-sm btn-danger" data-act="del">Eliminar</button>` +
+        `</div>`;
+      // textContent evita que un nombre con < > rompa el marcado
+      item.querySelector('.sheet-name').textContent = s.name || `Planilla ${idx + 1}`;
+      item.querySelector('.sheet-meta').textContent = meta;
+      cont.appendChild(item);
+    });
+  }
+
+  function onSheetListClick(e) {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const item = btn.closest('.sheet-item');
+    const idx = +item.dataset.idx;
+    const acciones = {
+      open: () => loadSheet(idx),
+      rename: () => startRename(item, idx),
+      dup: () => duplicateSheet(idx),
+      del: () => deleteSheetAt(idx)
+    };
+    (acciones[btn.dataset.act] || (() => {}))();
+  }
+
+  // Renombrar en línea: el nombre se vuelve un campo editable
+  function startRename(item, idx) {
+    const cont = item.querySelector('.sheet-name');
+    if (cont.querySelector('input')) return;
+    const actual = store.sheets[idx].name || '';
+    cont.innerHTML = '';
+    const input = document.createElement('input');
+    input.className = 'sheet-rename';
+    input.type = 'text';
+    input.value = actual;
+    cont.appendChild(input);
+    input.focus();
+    input.select();
+
+    let cerrado = false;
+    const confirmar = (guardar) => {
+      if (cerrado) return;
+      cerrado = true;
+      const nuevo = input.value.trim();
+      if (guardar && nuevo && nuevo !== actual) {
+        store.sheets[idx].name = nuevo;
+        if (current && current._idx === idx) { current.name = nuevo; updateCurrentName(); }
+        persist();
+        toast('Planilla renombrada');
+      }
+      renderSheetList();
+    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') confirmar(true);
+      if (ev.key === 'Escape') confirmar(false);
+    });
+    input.addEventListener('blur', () => confirmar(true));
+  }
+
+  function duplicateSheet(idx) {
+    const copia = JSON.parse(JSON.stringify(store.sheets[idx]));
+    copia.name = (copia.name || `Planilla ${idx + 1}`) + ' (copia)';
+    copia.savedAt = new Date().toISOString();
+    delete copia._idx;
+    store.sheets.splice(idx + 1, 0, copia);
+    // el índice de la planilla abierta puede haberse desplazado
+    if (current && current._idx != null && current._idx > idx) current._idx++;
     persist();
-    refreshSheetSelect();
-    if (store.sheets.length) loadSheet(0); else newSheet();
+    renderSheetList();
+    toast('Planilla duplicada');
+  }
+
+  function deleteSheetAt(idx) {
+    const s = store.sheets[idx];
+    if (!confirm(`¿Eliminar "${s.name || 'esta planilla'}"? No se puede deshacer.`)) return;
+    store.sheets.splice(idx, 1);
+    // reajusta el índice de la planilla abierta
+    if (current && current._idx != null) {
+      if (current._idx === idx) current._idx = null;      // pasa a ser no guardada
+      else if (current._idx > idx) current._idx--;
+    }
+    persist();
     toast('Planilla eliminada');
+    if (store.sheets.length) renderSheetList();
+    else showHome(false); // sin planillas: vuelve al nivel 1
   }
 
   // ---------------- Operaciones sobre filas ----------------
@@ -434,10 +587,12 @@
     lastBlobUrl = url;
   }
 
-  // Vista previa automática (con retraso para no regenerar el PDF en cada tecla)
+  // Vista previa automática (con retraso para no regenerar el PDF en cada tecla).
+  // Solo se ejecuta dentro del editor: en la pantalla de inicio no hay nada que mostrar.
   let previewTimer = null;
   function scheduleLivePreview() {
     clearTimeout(previewTimer);
+    if (!enEditor) return;
     previewTimer = setTimeout(() => { preview().catch(() => {}); }, 400);
   }
 
@@ -456,34 +611,24 @@
     buildTable();
     initSignature();
 
-    // Botones
-    $('btnNew').addEventListener('click', newSheet);
+    // Editor
     $('btnSave').addEventListener('click', saveSheet);
-    $('btnDelete').addEventListener('click', deleteSheet);
+    $('btnHome').addEventListener('click', goHome);
     $('btnClearRows').addEventListener('click', clearRows);
-    $('sheetSelect').addEventListener('change', (e) => loadSheet(+e.target.value));
     HEADER_IDS.forEach(id => $(id).addEventListener('input', scheduleAutosaveHeader));
+
+    // Pantalla de inicio
+    $('cardNew').addEventListener('click', newSheet);
+    $('cardOpen').addEventListener('click', () => showHome(true));
+    $('btnBackChoice').addEventListener('click', () => showHome(false));
+    $('sheetList').addEventListener('click', onSheetListClick);
 
     // Carga persistencia
     store = await window.api.loadData();
     if (!store.header) store.header = {};
     if (!store.sheets) store.sheets = [];
 
-    refreshSheetSelect();
-    if (store.sheets.length) {
-      loadSheet(store.sheets.length - 1);
-      $('sheetSelect').value = current._idx;
-    } else {
-      newSheet();
-    }
-    // aplica firma guardada globalmente si es planilla nueva
-    if (current._idx == null && store.header.signature) {
-      const s = store.header.signature;
-      $('sigMethod').value = s.method || 'none';
-      sigDataUrl = s.dataUrl || null;
-      $('sigText').value = s.text || '';
-      applySignatureUI();
-    }
+    showHome(false); // la app siempre arranca en el inicio
   }
 
   window.addEventListener('DOMContentLoaded', init);

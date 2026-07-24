@@ -40,6 +40,46 @@ body {
 .btn-sm { padding: 5px 9px; font-size: 12px; }
 select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 
+.current-name { color: var(--muted); font-size: 12px; max-width: 320px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Pantalla de inicio ---------- */
+.home { flex: 1; min-height: 0; overflow-y: auto; display: flex;
+  align-items: center; justify-content: center; padding: 24px; }
+.home-inner { width: 100%; max-width: 720px; }
+.home-title { font-size: 20px; font-weight: 700; margin: 0 0 18px; text-align: center; }
+
+/* Nivel 1: tarjetas */
+.home-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.home-card { display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 28px 20px; cursor: pointer; font-family: inherit; color: var(--ink);
+  transition: border-color .12s, box-shadow .12s, transform .12s; }
+.home-card:hover:not(:disabled) { border-color: var(--accent);
+  box-shadow: 0 6px 18px rgba(47,111,237,.12); transform: translateY(-2px); }
+.home-card-icon { font-size: 30px; color: var(--accent); line-height: 1; }
+.home-card-title { font-size: 15px; font-weight: 700; }
+.home-card-desc { font-size: 12px; color: var(--muted); text-align: center; }
+.home-card:disabled { cursor: not-allowed; opacity: .5; background: var(--ghost); }
+.home-card:disabled .home-card-icon { color: var(--muted); }
+
+/* Nivel 2: lista de planillas */
+.home-list-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.home-list-head .home-title { margin: 0; flex: 1; text-align: left; }
+.sheet-list { display: flex; flex-direction: column; gap: 10px; }
+.sheet-item { display: flex; align-items: center; gap: 12px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.sheet-item:hover { border-color: #c8d4ee; }
+.sheet-info { flex: 1; min-width: 0; }
+.sheet-name { font-weight: 600; font-size: 14px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.sheet-meta { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+.sheet-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.sheet-rename { width: 100%; padding: 5px 8px; border: 1px solid var(--accent);
+  border-radius: 7px; font-size: 14px; font-weight: 600; font-family: inherit; }
+.btn-danger:hover { background: #fdeaea; border-color: #f3c3c3; color: #c0392b; }
+.home-empty { text-align: center; color: var(--muted); padding: 30px; }
+
 /* Layout */
 .layout { display: flex; flex: 1; min-height: 0; }
 .form-pane { width: 58%; min-width: 620px; overflow-y: auto; padding: 14px; }
