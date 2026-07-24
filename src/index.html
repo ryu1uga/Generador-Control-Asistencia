@@ -3,21 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <title>Registro de Control de Asistencia</title>
+  <link rel="stylesheet" href="vendor/icons/lucide.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="logo">✦</span>
-      <div>
+      <button id="btnHome" class="btn btn-icon hidden" title="Volver al inicio">
+        <i class="icon-arrow-left"></i>
+      </button>
+      <span class="logo"><i class="icon-file-text"></i></span>
+      <div class="brand-text">
         <div class="title">Registro de Control de Asistencia</div>
-        <div class="subtitle">Generador de planillas en PDF</div>
+        <div class="subtitle" id="subtitle">Generador de planillas en PDF</div>
       </div>
     </div>
     <div class="actions">
-      <button id="btnHome" class="btn hidden">← Inicio</button>
-      <span id="currentName" class="current-name hidden"></span>
-      <button id="btnSave" class="btn hidden">Guardar</button>
+      <button id="btnSave" class="btn btn-primary hidden">
+        <i class="icon-save"></i> Guardar
+      </button>
     </div>
   </header>
 
@@ -25,17 +29,16 @@
   <section id="homeView" class="home">
     <!-- Nivel 1: elegir qué hacer -->
     <div id="homeChoice" class="home-inner">
-      <h1 class="home-title">¿Qué quieres hacer?</h1>
       <div class="home-cards">
         <button id="cardNew" class="home-card">
-          <span class="home-card-icon">＋</span>
+          <i class="icon-plus home-card-icon"></i>
           <span class="home-card-title">Nueva planilla</span>
-          <span class="home-card-desc">Empieza una planilla en blanco</span>
+          <span class="home-card-desc">Formato en blanco</span>
         </button>
         <button id="cardOpen" class="home-card">
-          <span class="home-card-icon">🗂</span>
+          <i class="icon-folder-open home-card-icon"></i>
           <span class="home-card-title">Abrir existente</span>
-          <span class="home-card-desc" id="cardOpenDesc">Continúa una planilla guardada</span>
+          <span class="home-card-desc" id="cardOpenDesc"></span>
         </button>
       </div>
     </div>
@@ -43,7 +46,9 @@
     <!-- Nivel 2: lista de planillas guardadas -->
     <div id="homeList" class="home-inner hidden">
       <div class="home-list-head">
-        <button id="btnBackChoice" class="btn btn-sm">← Volver</button>
+        <button id="btnBackChoice" class="btn btn-icon" title="Volver">
+          <i class="icon-arrow-left"></i>
+        </button>
         <h1 class="home-title">Planillas guardadas</h1>
       </div>
       <div id="sheetList" class="sheet-list"><!-- generado por JS --></div>
@@ -69,10 +74,10 @@
             <input id="mes" type="text" placeholder="Mes o periodo" />
           </label>
           <label>Horas Semanales
-            <input id="horasSemanales" type="text" placeholder="Ej. 30" />
+            <input id="horasSemanales" type="text" placeholder="30" />
           </label>
         </div>
-        <p class="hint">La cabecera se guarda automáticamente y se prellenará la próxima vez.</p>
+        <p class="hint">Se recuerda para las próximas planillas.</p>
       </fieldset>
 
       <fieldset class="card">
@@ -108,9 +113,7 @@
       <fieldset class="card">
         <legend>Asistencia diaria</legend>
         <p class="hint">
-          El <strong>Tiempo acumulado</strong> se calcula solo: (Salida final − Ingreso) − refrigerio (Retorno − Salida refrigerio).
-          Puedes sobrescribirlo escribiendo un valor. Deja vacías las filas que no uses.
-          Arrastra ⋮⋮ para reordenar una fila y usa ✕ para eliminarla.
+          Las horas se calculan solas y puedes sobrescribirlas. Escribe <strong>8</strong> y se convierte en 08:00.
         </p>
         <div class="table-wrap">
           <table>
@@ -130,7 +133,9 @@
           </table>
         </div>
         <div class="tools">
-          <button id="btnClearRows" class="btn btn-ghost btn-sm">Limpiar todas las filas</button>
+          <button id="btnClearRows" class="btn btn-ghost btn-sm">
+            <i class="icon-eraser"></i> Limpiar todas las filas
+          </button>
         </div>
       </fieldset>
     </section>
@@ -140,8 +145,7 @@
       <div class="preview-head">Vista previa del PDF</div>
       <iframe id="pdfFrame" title="PDF"></iframe>
       <div id="previewEmpty" class="preview-empty">
-        La vista previa se actualiza <strong>automáticamente</strong> al escribir.
-        Usa los botones del visor de PDF para descargar o imprimir.
+        Se actualiza sola mientras escribes.
       </div>
     </section>
   </main>

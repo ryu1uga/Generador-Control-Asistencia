@@ -72,21 +72,21 @@
       const tr = document.createElement('tr');
       tr.dataset.rowindex = i;
       tr.innerHTML =
-        `<td class="col-num"><span class="drag-handle" title="Arrastra para reordenar">⋮⋮</span></td>` +
+        `<td class="col-num"><span class="drag-handle" title="Arrastra para reordenar"><i class="icon-grip-vertical"></i></span></td>` +
         FIELDS.map(f => {
           if (f === 'fecha') {
             // Fecha: campo de texto + botón de calendario
             return `<td class="col-fecha"><div class="dt-cell">` +
               `<input class="dt-text" data-row="${i}" data-field="${f}" type="text" />` +
               `<input class="dt-native" data-row="${i}" data-field="${f}" type="date" tabindex="-1" aria-hidden="true" />` +
-              `<button type="button" class="dt-pick" title="Elegir fecha">📅</button>` +
+              `<button type="button" class="dt-pick" title="Elegir fecha"><i class="icon-calendar"></i></button>` +
               `</div></td>`;
           }
           // Horas: solo campo de texto (se autoformatea a HH:mm)
           return `<td class="col-hora"><input data-row="${i}" data-field="${f}" type="text" /></td>`;
         }).join('') +
         `<td class="calc col-horas"><input data-row="${i}" data-field="tiempo" type="text" placeholder="—" /></td>` +
-        `<td class="col-del"><button type="button" class="row-del" title="Eliminar fila">✕</button></td>`;
+        `<td class="col-del"><button type="button" class="row-del" title="Eliminar fila"><i class="icon-x"></i></button></td>`;
       body.appendChild(tr);
     }
     body.addEventListener('input', onCellInput);
@@ -144,7 +144,7 @@
     body.querySelectorAll('tr').forEach(tr => { tr.draggable = false; });
   }
 
-  // Clicks dentro de la tabla: calendario 📅 o eliminar fila ✕
+  // Clicks dentro de la tabla: abrir calendario o eliminar fila
   function onRowButtons(e) {
     const del = e.target.closest('.row-del');
     if (del) {
@@ -154,7 +154,7 @@
     onPickClick(e);
   }
 
-  // Abre el calendario nativo al pulsar el botón 📅
+  // Abre el calendario nativo al pulsar el botón de la celda de fecha
   function onPickClick(e) {
     const btn = e.target.closest('.dt-pick');
     if (!btn) return;
@@ -248,7 +248,7 @@
       store.header.signature = getSignature();
       persist();
     }, 500);
-    if (enEditor) sinGuardar = true;
+    marcarSinGuardar();
     scheduleLivePreview(); // refresca la vista previa al cambiar cabecera/celdas/firma
   }
 
@@ -306,15 +306,24 @@
   function persist() { window.api.saveData(store); }
 
   // ---------------- Navegación entre vistas ----------------
+  const SUBTITULO = 'Generador de planillas en PDF';
   let enEditor = false;   // el preview en vivo solo corre dentro del editor
   let sinGuardar = false; // hay cambios pendientes en la planilla abierta
+
+  // Marca cambios pendientes y refresca el aviso del subtítulo una sola vez
+  function marcarSinGuardar() {
+    if (!enEditor || sinGuardar) return;
+    sinGuardar = true;
+    updateCurrentName();
+  }
 
   function showHome(mostrarLista) {
     enEditor = false;
     clearTimeout(previewTimer);
     $('homeView').classList.remove('hidden');
     document.querySelector('.layout').classList.add('hidden');
-    ['btnHome', 'btnSave', 'currentName'].forEach(id => $(id).classList.add('hidden'));
+    ['btnHome', 'btnSave'].forEach(id => $(id).classList.add('hidden'));
+    $('subtitle').textContent = SUBTITULO;
 
     const n = store.sheets.length;
     const hayPlanillas = n > 0;
@@ -333,15 +342,22 @@
     enEditor = true;
     $('homeView').classList.add('hidden');
     document.querySelector('.layout').classList.remove('hidden');
-    ['btnHome', 'btnSave', 'currentName'].forEach(id => $(id).classList.remove('hidden'));
+    ['btnHome', 'btnSave'].forEach(id => $(id).classList.remove('hidden'));
     updateCurrentName();
     scheduleLivePreview();
   }
 
+  // En el editor el subtítulo muestra la planilla abierta y su estado
   function updateCurrentName() {
-    $('currentName').textContent = current
-      ? (current.name || 'Planilla sin guardar')
-      : '';
+    if (!enEditor) return;
+    const sub = $('subtitle');
+    sub.textContent = (current && current.name) ? current.name : 'Planilla nueva';
+    if (sinGuardar) {
+      const marca = document.createElement('span');
+      marca.className = 'sin-guardar';
+      marca.textContent = ' · sin guardar';
+      sub.appendChild(marca);
+    }
   }
 
   // Vuelve al inicio avisando si quedan cambios sin guardar
@@ -377,10 +393,8 @@
   function saveSheet() {
     current.header = readHeader();
     current.signature = getSignature();
-    // nombre por defecto
-    if (!current.name) {
-      current.name = (current.header.mes || 'Planilla') + ' — ' + new Date().toLocaleDateString('es-PE');
-    }
+    // Nombre por defecto: el mismo que llevará el PDF generado
+    if (!current.name) current.name = PDFGen.docName();
     current.savedAt = new Date().toISOString();
     if (current._idx == null) {
       current._idx = store.sheets.length;
@@ -442,16 +456,18 @@
       const item = document.createElement('div');
       item.className = 'sheet-item';
       item.dataset.idx = idx;
+      item.tabIndex = 0;
       item.innerHTML =
         `<div class="sheet-info">` +
           `<div class="sheet-name"></div>` +
           `<div class="sheet-meta"></div>` +
         `</div>` +
         `<div class="sheet-actions">` +
-          `<button class="btn btn-sm" data-act="open">Abrir</button>` +
-          `<button class="btn btn-sm" data-act="rename">Renombrar</button>` +
-          `<button class="btn btn-sm" data-act="dup">Duplicar</button>` +
-          `<button class="btn btn-sm btn-danger" data-act="del">Eliminar</button>` +
+          `<button class="btn btn-sm btn-primary" data-act="open">Abrir</button>` +
+          `<span class="sep"></span>` +
+          `<button class="btn btn-sm btn-icon" data-act="rename" title="Renombrar"><i class="icon-pencil"></i></button>` +
+          `<button class="btn btn-sm btn-icon" data-act="dup" title="Duplicar"><i class="icon-copy"></i></button>` +
+          `<button class="btn btn-sm btn-icon btn-danger" data-act="del" title="Eliminar"><i class="icon-trash-2"></i></button>` +
         `</div>`;
       // textContent evita que un nombre con < > rompa el marcado
       item.querySelector('.sheet-name').textContent = s.name || `Planilla ${idx + 1}`;
@@ -461,10 +477,16 @@
   }
 
   function onSheetListClick(e) {
-    const btn = e.target.closest('button[data-act]');
-    if (!btn) return;
-    const item = btn.closest('.sheet-item');
+    const item = e.target.closest('.sheet-item');
+    if (!item) return;
     const idx = +item.dataset.idx;
+    const btn = e.target.closest('button[data-act]');
+    // Clic en cualquier parte de la tarjeta (salvo botones o el campo de
+    // renombrado) equivale a abrir la planilla.
+    if (!btn) {
+      if (!e.target.closest('input')) loadSheet(idx);
+      return;
+    }
     const acciones = {
       open: () => loadSheet(idx),
       rename: () => startRename(item, idx),
