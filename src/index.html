@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Registro de Control de Asistencia</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✦</span>
+      <div>
+        <div class="title">Registro de Control de Asistencia</div>
+        <div class="subtitle">Generador de planillas en PDF</div>
+      </div>
+    </div>
+    <div class="actions">
+      <select id="sheetSelect" title="Planillas guardadas"></select>
+      <button id="btnNew" class="btn">Nueva</button>
+      <button id="btnSave" class="btn">Guardar</button>
+      <button id="btnDelete" class="btn btn-ghost">Eliminar</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Panel de formulario -->
+    <section class="form-pane">
+      <fieldset class="card">
+        <legend>Cabecera</legend>
+        <div class="grid2">
+          <label>Apellidos y Nombres
+            <input id="nombres" type="text" placeholder="Apellidos, Nombres" />
+          </label>
+          <label>Dependencia
+            <input id="dependencia" type="text" placeholder="Área o dependencia" />
+          </label>
+          <label>Código
+            <input id="codigo" type="text" placeholder="Código o N° de documento" />
+          </label>
+          <label>Mes
+            <input id="mes" type="text" placeholder="Mes o periodo" />
+          </label>
+          <label>Horas Semanales
+            <input id="horasSemanales" type="text" placeholder="Ej. 30" />
+          </label>
+        </div>
+        <p class="hint">La cabecera se guarda automáticamente y se prellenará la próxima vez.</p>
+      </fieldset>
+
+      <fieldset class="card">
+        <legend>Firma</legend>
+        <div class="sig-row">
+          <label>Método
+            <select id="sigMethod">
+              <option value="none">Dejar en blanco (firmar a mano)</option>
+              <option value="image">Imagen de firma (subir PNG/JPG)</option>
+              <option value="draw">Dibujar firma en pantalla</option>
+              <option value="text">Texto (nombre)</option>
+            </select>
+          </label>
+          <div id="sigImageBox" class="sig-opt hidden">
+            <input id="sigFile" type="file" accept="image/png,image/jpeg" />
+          </div>
+          <div id="sigTextBox" class="sig-opt hidden">
+            <input id="sigText" type="text" placeholder="Nombre o iniciales" />
+          </div>
+        </div>
+        <div id="sigDrawBox" class="sig-opt hidden">
+          <canvas id="sigCanvas" width="360" height="90"></canvas>
+          <div class="sig-draw-actions">
+            <button id="btnClearSig" class="btn btn-ghost btn-sm">Borrar</button>
+            <span class="hint">Dibuja con el mouse dentro del recuadro.</span>
+          </div>
+        </div>
+        <div id="sigPreview" class="sig-preview hidden">
+          <span>Vista previa firma:</span> <img id="sigPreviewImg" alt="firma" />
+        </div>
+      </fieldset>
+
+      <fieldset class="card">
+        <legend>Asistencia diaria</legend>
+        <p class="hint">
+          El <strong>Tiempo acumulado</strong> se calcula solo: (Salida final − Ingreso) − refrigerio (Retorno − Salida refrigerio).
+          Puedes sobrescribirlo escribiendo un valor. Deja vacías las filas que no uses.
+          Arrastra ⋮⋮ para reordenar una fila y usa ✕ para eliminarla.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-num"></th>
+                <th class="col-fecha">Fecha</th>
+                <th class="col-hora">Ingreso</th>
+                <th class="col-hora">Salida<br>refrigerio</th>
+                <th class="col-hora">Retorno</th>
+                <th class="col-hora">Salida<br>final</th>
+                <th class="col-horas">Horas<br>(auto)</th>
+                <th class="col-del"></th>
+              </tr>
+            </thead>
+            <tbody id="rowsBody"><!-- generado por JS --></tbody>
+          </table>
+        </div>
+        <div class="tools">
+          <button id="btnClearRows" class="btn btn-ghost btn-sm">Limpiar todas las filas</button>
+        </div>
+      </fieldset>
+    </section>
+
+    <!-- Panel de vista previa PDF -->
+    <section class="preview-pane">
+      <div class="preview-head">Vista previa del PDF</div>
+      <iframe id="pdfFrame" title="PDF"></iframe>
+      <div id="previewEmpty" class="preview-empty">
+        La vista previa se actualiza <strong>automáticamente</strong> al escribir.
+        Usa los botones del visor de PDF para descargar o imprimir.
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Librerías locales -->
+  <script src="vendor/pdf-lib.min.js"></script>
+  <script src="coords.js"></script>
+  <script src="pdf.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
