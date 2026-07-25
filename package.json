@@ -33,10 +33,11 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
       "target": [
