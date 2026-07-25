@@ -26,11 +26,15 @@
     ],
     "win": {
       "target": "nsis",
+      "icon": "assets/icon.ico",
       "artifactName": "Control-Asistencia-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true
     }
   }
 }

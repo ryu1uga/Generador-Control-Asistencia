@@ -38,6 +38,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     title: 'Registro de Control de Asistencia',
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
