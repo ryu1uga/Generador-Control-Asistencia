@@ -1,5 +1,5 @@
 // main.js — Proceso principal de Electron
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -38,6 +38,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     title: 'Registro de Control de Asistencia',
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -93,5 +94,43 @@ ipcMain.handle('load-data', async () => loadData());
 ipcMain.handle('save-data', async (event, data) => {
   saveData(data);
   return true;
+});
+
+// ---------- Copia de seguridad ----------
+
+// Nombre sugerido del archivo de copia: "Copia Control de Asistencia AAAA-MM-DD.json"
+function backupFileName() {
+  const d = new Date();
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return `Copia Control de Asistencia ${iso}.json`;
+}
+
+ipcMain.handle('export-backup', async (event, contenido) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Guardar copia de seguridad',
+    defaultPath: path.join(app.getPath('documents'), backupFileName()),
+    filters: [{ name: 'Copia de seguridad', extensions: ['json'] }]
+  });
+  if (canceled || !filePath) return { ok: false };
+  try {
+    fs.writeFileSync(filePath, contenido, 'utf-8');
+    return { ok: true, filePath };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('import-backup', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Abrir copia de seguridad',
+    properties: ['openFile'],
+    filters: [{ name: 'Copia de seguridad', extensions: ['json'] }]
+  });
+  if (canceled || !filePaths.length) return { ok: false };
+  try {
+    return { ok: true, contenido: fs.readFileSync(filePaths[0], 'utf-8') };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 

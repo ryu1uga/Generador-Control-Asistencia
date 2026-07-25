@@ -122,5 +122,5 @@ const PDFGen = (function () {
     return await pdfDoc.save();
   }
 
-  return { build };
+  return { build, docName };
 })();

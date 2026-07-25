@@ -72,21 +72,21 @@
       const tr = document.createElement('tr');
       tr.dataset.rowindex = i;
       tr.innerHTML =
-        `<td class="col-num"><span class="drag-handle" title="Arrastra para reordenar">⋮⋮</span></td>` +
+        `<td class="col-num"><span class="drag-handle" title="Arrastra para reordenar"><i class="icon-grip-vertical"></i></span></td>` +
         FIELDS.map(f => {
           if (f === 'fecha') {
             // Fecha: campo de texto + botón de calendario
             return `<td class="col-fecha"><div class="dt-cell">` +
               `<input class="dt-text" data-row="${i}" data-field="${f}" type="text" />` +
               `<input class="dt-native" data-row="${i}" data-field="${f}" type="date" tabindex="-1" aria-hidden="true" />` +
-              `<button type="button" class="dt-pick" title="Elegir fecha">📅</button>` +
+              `<button type="button" class="dt-pick" title="Elegir fecha"><i class="icon-calendar"></i></button>` +
               `</div></td>`;
           }
           // Horas: solo campo de texto (se autoformatea a HH:mm)
           return `<td class="col-hora"><input data-row="${i}" data-field="${f}" type="text" /></td>`;
         }).join('') +
         `<td class="calc col-horas"><input data-row="${i}" data-field="tiempo" type="text" placeholder="—" /></td>` +
-        `<td class="col-del"><button type="button" class="row-del" title="Eliminar fila">✕</button></td>`;
+        `<td class="col-del"><button type="button" class="row-del" title="Eliminar fila"><i class="icon-x"></i></button></td>`;
       body.appendChild(tr);
     }
     body.addEventListener('input', onCellInput);
@@ -144,7 +144,7 @@
     body.querySelectorAll('tr').forEach(tr => { tr.draggable = false; });
   }
 
-  // Clicks dentro de la tabla: calendario 📅 o eliminar fila ✕
+  // Clicks dentro de la tabla: abrir calendario o eliminar fila
   function onRowButtons(e) {
     const del = e.target.closest('.row-del');
     if (del) {
@@ -154,7 +154,7 @@
     onPickClick(e);
   }
 
-  // Abre el calendario nativo al pulsar el botón 📅
+  // Abre el calendario nativo al pulsar el botón de la celda de fecha
   function onPickClick(e) {
     const btn = e.target.closest('.dt-pick');
     if (!btn) return;
@@ -240,110 +240,322 @@
     HEADER_IDS.forEach(id => $(id).value = (h && h[id]) || '');
   }
 
-  let autosaveTimer = null;
+  // Cualquier edición del editor: marca cambios pendientes y refresca el PDF.
+  // La cabecera ya no se recuerda sola; sus valores iniciales salen de
+  // Configuración y lo demás se conserva al pulsar Guardar.
   function scheduleAutosaveHeader() {
-    clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(() => {
-      store.header = readHeader();          // recuerda la cabecera globalmente
-      store.header.signature = getSignature();
-      persist();
-    }, 500);
-    scheduleLivePreview(); // refresca la vista previa al cambiar cabecera/celdas/firma
+    marcarSinGuardar();
+    scheduleLivePreview();
   }
 
   // ---------------- Firma ----------------
-  let sigDataUrl = null;
+  // Control reutilizable: el mismo bloque sirve para la planilla ('sig') y
+  // para la firma por defecto de Configuración ('dsig'). `alCambiar` avisa
+  // al contenedor para que marque cambios o persista, según el caso.
+  function crearControlFirma(p, alCambiar) {
+    const el = (sufijo) => $(p + sufijo);
+    let dataUrl = null;
 
-  function getSignature() {
-    return { method: $('sigMethod').value, dataUrl: sigDataUrl, text: $('sigText').value.trim() };
-  }
-  function applySignatureUI() {
-    const m = $('sigMethod').value;
-    $('sigImageBox').classList.toggle('hidden', m !== 'image');
-    $('sigDrawBox').classList.toggle('hidden', m !== 'draw');
-    $('sigTextBox').classList.toggle('hidden', m !== 'text');
-    const showPrev = (m === 'image' || m === 'draw') && sigDataUrl;
-    $('sigPreview').classList.toggle('hidden', !showPrev);
-    if (showPrev) $('sigPreviewImg').src = sigDataUrl;
-  }
+    function get() {
+      return { method: el('Method').value, dataUrl, text: el('Text').value.trim() };
+    }
 
-  function initSignature() {
-    $('sigMethod').addEventListener('change', () => { applySignatureUI(); scheduleAutosaveHeader(); });
-    $('sigText').addEventListener('input', scheduleAutosaveHeader);
-    $('sigFile').addEventListener('change', (e) => {
+    function set(sig) {
+      sig = sig || {};
+      el('Method').value = sig.method || 'none';
+      dataUrl = sig.dataUrl || null;
+      el('Text').value = sig.text || '';
+      limpiarLienzo();
+      if (dataUrl && sig.method === 'draw') pintarEnLienzo(dataUrl);
+      applyUI();
+    }
+
+    function applyUI() {
+      const m = el('Method').value;
+      el('ImageBox').classList.toggle('hidden', m !== 'image');
+      el('DrawBox').classList.toggle('hidden', m !== 'draw');
+      el('TextBox').classList.toggle('hidden', m !== 'text');
+      const verPrev = (m === 'image' || m === 'draw') && dataUrl;
+      el('Preview').classList.toggle('hidden', !verPrev);
+      if (verPrev) el('PreviewImg').src = dataUrl;
+    }
+
+    const notificar = () => { applyUI(); if (alCambiar) alCambiar(); };
+
+    function limpiarLienzo() {
+      const c = el('Canvas');
+      c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    }
+    // Restaura un dibujo guardado dentro del lienzo al reabrir
+    function pintarEnLienzo(url) {
+      const c = el('Canvas'), img = new Image();
+      img.onload = () => c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      img.src = url;
+    }
+
+    el('Method').addEventListener('change', notificar);
+    el('Text').addEventListener('input', () => { if (alCambiar) alCambiar(); });
+    el('File').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => { sigDataUrl = reader.result; applySignatureUI(); scheduleAutosaveHeader(); };
+      reader.onload = () => { dataUrl = reader.result; notificar(); };
       reader.readAsDataURL(file);
     });
-    initCanvas();
-    $('btnClearSig').addEventListener('click', () => {
-      const c = $('sigCanvas'); c.getContext('2d').clearRect(0, 0, c.width, c.height);
-      sigDataUrl = null; applySignatureUI(); scheduleAutosaveHeader();
-    });
-  }
+    el('Clear').addEventListener('click', () => { limpiarLienzo(); dataUrl = null; notificar(); });
 
-  function initCanvas() {
-    const c = $('sigCanvas');
+    // Dibujo con el mouse
+    const c = el('Canvas');
     const ctx = c.getContext('2d');
     ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
-    let drawing = false;
+    let trazando = false;
     const pos = (e) => {
       const r = c.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+      return { x: (e.clientX - r.left) * (c.width / r.width),
+               y: (e.clientY - r.top) * (c.height / r.height) };
     };
-    c.addEventListener('mousedown', (e) => { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
-    c.addEventListener('mousemove', (e) => { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    c.addEventListener('mousedown', (e) => { trazando = true; const q = pos(e); ctx.beginPath(); ctx.moveTo(q.x, q.y); });
+    c.addEventListener('mousemove', (e) => { if (!trazando) return; const q = pos(e); ctx.lineTo(q.x, q.y); ctx.stroke(); });
     window.addEventListener('mouseup', () => {
-      if (!drawing) return; drawing = false;
-      sigDataUrl = c.toDataURL('image/png'); applySignatureUI(); scheduleAutosaveHeader();
+      if (!trazando) return; trazando = false;
+      dataUrl = c.toDataURL('image/png'); notificar();
     });
+
+    return { get, set, applyUI };
   }
+
+  let firmaPlanilla = null;   // firma de la planilla abierta
+  let firmaDefecto = null;    // firma por defecto (Configuración)
+
+  const getSignature = () => firmaPlanilla.get();
 
   // ---------------- Planillas (persistencia) ----------------
   function persist() { window.api.saveData(store); }
 
-  function refreshSheetSelect() {
-    const sel = $('sheetSelect');
-    sel.innerHTML = '';
-    store.sheets.forEach((s, idx) => {
-      const o = document.createElement('option');
-      o.value = idx; o.textContent = s.name || `Planilla ${idx + 1}`;
-      sel.appendChild(o);
-    });
-    if (current && current._idx != null) sel.value = current._idx;
+  // ---------------- Tema ----------------
+  // 'light' | 'dark' | 'system'. En 'system' se sigue la apariencia del SO.
+  const consultaOscuro = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function temaElegido() {
+    return (store.settings && store.settings.theme) || 'system';
   }
 
-  function newSheet() {
-    current = {
-      name: '',
-      header: Object.assign({}, store.header),
-      rows: [],
-      _idx: null
+  function applyTheme() {
+    const elegido = temaElegido();
+    const efectivo = elegido === 'system'
+      ? (consultaOscuro.matches ? 'dark' : 'light')
+      : elegido;
+    document.documentElement.setAttribute('data-theme', efectivo);
+    document.querySelectorAll('#themeSeg .seg-opt').forEach(b => {
+      b.classList.toggle('active', b.dataset.themeOpt === elegido);
+    });
+  }
+
+  function setTheme(valor) {
+    if (!store.settings) store.settings = {};
+    store.settings.theme = valor;
+    persist();
+    applyTheme();
+  }
+
+  // ---------------- Datos por defecto ----------------
+  // El mes queda fuera a propósito: es propio de cada planilla.
+  const DEFAULT_IDS = ['nombres', 'dependencia', 'codigo', 'horasSemanales'];
+  const idDefecto = (campo) => 'def' + campo.charAt(0).toUpperCase() + campo.slice(1);
+
+  function leerDefaults() {
+    const d = {};
+    DEFAULT_IDS.forEach(c => { d[c] = $(idDefecto(c)).value.trim(); });
+    d.signature = firmaDefecto.get();
+    return d;
+  }
+
+  function escribirDefaults() {
+    const d = (store.settings && store.settings.defaults) || {};
+    DEFAULT_IDS.forEach(c => { $(idDefecto(c)).value = d[c] || ''; });
+    firmaDefecto.set(d.signature);
+  }
+
+  let defaultsTimer = null;
+  function guardarDefaults() {
+    clearTimeout(defaultsTimer);
+    defaultsTimer = setTimeout(() => {
+      if (!store.settings) store.settings = {};
+      store.settings.defaults = leerDefaults();
+      persist();
+    }, 400);
+  }
+
+  // ---------------- Copia de seguridad ----------------
+  const BACKUP_APP = 'control-asistencia';
+
+  async function exportarCopia() {
+    const copia = {
+      app: BACKUP_APP,
+      formato: 1,
+      exportadoEl: new Date().toISOString(),
+      datos: { sheets: store.sheets, settings: store.settings }
     };
-    delete current.header.signature;
-    writeHeader(current.header);
-    // restaura firma global
-    if (store.header && store.header.signature) {
-      const s = store.header.signature;
-      $('sigMethod').value = s.method || 'none';
-      sigDataUrl = s.dataUrl || null;
-      $('sigText').value = s.text || '';
+    const res = await window.api.exportBackup(JSON.stringify(copia, null, 2));
+    if (res.ok) toast('Copia guardada');
+    else if (res.error) alert('No se pudo guardar la copia: ' + res.error);
+  }
+
+  // Acepta el formato con envoltorio y también un archivo de datos plano
+  function extraerDatos(texto) {
+    let obj;
+    try { obj = JSON.parse(texto); }
+    catch (e) { throw new Error('El archivo no es un JSON válido.'); }
+    const datos = (obj && obj.datos) ? obj.datos : obj;
+    if (!datos || typeof datos !== 'object' || !Array.isArray(datos.sheets)) {
+      throw new Error('El archivo no parece una copia de esta aplicación.');
     }
-    applySignatureUI();
+    return {
+      sheets: datos.sheets,
+      settings: (datos.settings && typeof datos.settings === 'object') ? datos.settings : {}
+    };
+  }
+
+  async function importarCopia() {
+    const res = await window.api.importBackup();
+    if (!res.ok) {
+      if (res.error) alert('No se pudo leer el archivo: ' + res.error);
+      return;
+    }
+    let datos;
+    try { datos = extraerDatos(res.contenido); }
+    catch (e) { alert(e.message); return; }
+
+    const actuales = store.sheets.length;
+    const entrantes = datos.sheets.length;
+    const aviso = actuales
+      ? `Se reemplazarán todas las planillas actuales por las planillas entrantes del archivo. Esto no se puede deshacer.\n\n¿Continuar?`
+      : `Se importarán ${entrantes} planilla(s). ¿Continuar?`;
+    if (!confirm(aviso)) return;
+
+    store.sheets = datos.sheets;
+    store.settings = datos.settings;
+    current = null;
+    sinGuardar = false;
+    persist();
+
+    applyTheme();
+    escribirDefaults();
+    showHome(false);
+    toast(`Copia importada: ${entrantes} planilla(s)`);
+  }
+
+  function initSettings() {
+    const modal = $('settingsModal');
+    const abrir = () => { modal.classList.remove('hidden'); applyTheme(); escribirDefaults(); };
+    const cerrar = () => modal.classList.add('hidden');
+
+    DEFAULT_IDS.forEach(c => $(idDefecto(c)).addEventListener('input', guardarDefaults));
+    $('btnExport').addEventListener('click', () => exportarCopia().catch(e => alert(e.message)));
+    $('btnImport').addEventListener('click', () => importarCopia().catch(e => alert(e.message)));
+
+    $('btnSettings').addEventListener('click', abrir);
+    $('btnCloseSettings').addEventListener('click', cerrar);
+    // Clic fuera del cuadro o Escape para cerrar
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) cerrar();
+    });
+    $('themeSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-theme-opt]');
+      if (b) setTheme(b.dataset.themeOpt);
+    });
+    // Si el tema es 'system', seguir los cambios del SO en caliente
+    consultaOscuro.addEventListener('change', () => {
+      if (temaElegido() === 'system') applyTheme();
+    });
+  }
+
+  // ---------------- Navegación entre vistas ----------------
+  const SUBTITULO = 'Generador de planillas en PDF';
+  let enEditor = false;   // el preview en vivo solo corre dentro del editor
+  let sinGuardar = false; // hay cambios pendientes en la planilla abierta
+
+  // Marca cambios pendientes y refresca el aviso del subtítulo una sola vez
+  function marcarSinGuardar() {
+    if (!enEditor || sinGuardar) return;
+    sinGuardar = true;
+    updateCurrentName();
+  }
+
+  function showHome(mostrarLista) {
+    enEditor = false;
+    clearTimeout(previewTimer);
+    $('homeView').classList.remove('hidden');
+    document.querySelector('.layout').classList.add('hidden');
+    ['btnHome', 'btnSave'].forEach(id => $(id).classList.add('hidden'));
+    $('subtitle').textContent = SUBTITULO;
+
+    const n = store.sheets.length;
+    const hayPlanillas = n > 0;
+    $('cardOpen').disabled = !hayPlanillas;
+    $('cardOpenDesc').textContent = !hayPlanillas
+      ? 'No hay planillas guardadas'
+      : (n === 1 ? 'Tienes 1 planilla guardada' : `Tienes ${n} planillas guardadas`);
+
+    const verLista = !!mostrarLista && hayPlanillas;
+    $('homeChoice').classList.toggle('hidden', verLista);
+    $('homeList').classList.toggle('hidden', !verLista);
+    if (verLista) renderSheetList();
+  }
+
+  function showEditor() {
+    enEditor = true;
+    $('homeView').classList.add('hidden');
+    document.querySelector('.layout').classList.remove('hidden');
+    ['btnHome', 'btnSave'].forEach(id => $(id).classList.remove('hidden'));
+    updateCurrentName();
+    scheduleLivePreview();
+  }
+
+  // En el editor el subtítulo muestra la planilla abierta y su estado
+  function updateCurrentName() {
+    if (!enEditor) return;
+    const sub = $('subtitle');
+    sub.textContent = (current && current.name) ? current.name : 'Planilla nueva';
+    if (sinGuardar) {
+      const marca = document.createElement('span');
+      marca.className = 'sin-guardar';
+      marca.textContent = ' · sin guardar';
+      sub.appendChild(marca);
+    }
+  }
+
+  // Vuelve al inicio avisando si quedan cambios sin guardar
+  function goHome() {
+    if (sinGuardar && !confirm('Tienes cambios sin guardar. ¿Salir de todos modos?')) return;
+    sinGuardar = false;
+    showHome(false);
+  }
+
+  // Planilla nueva: parte de los valores definidos en Configuración.
+  // Si no hay ninguno, todo queda en blanco (firma incluida). El mes nunca
+  // se hereda porque es propio de cada planilla.
+  function newSheet() {
+    const def = (store.settings && store.settings.defaults) || {};
+    const header = {};
+    DEFAULT_IDS.forEach(c => { header[c] = def[c] || ''; });
+    header.mes = '';
+
+    current = { name: '', header, rows: [], _idx: null };
+    writeHeader(header);
+    firmaPlanilla.set(def.signature);
     for (let i = 0; i < ROWS; i++) current.rows[i] = {};
     renderRows();
-    toast('Nueva planilla');
+    sinGuardar = false;
+    showEditor();
   }
 
   function saveSheet() {
     current.header = readHeader();
     current.signature = getSignature();
-    // nombre por defecto
-    if (!current.name) {
-      current.name = (current.header.mes || 'Planilla') + ' — ' + new Date().toLocaleDateString('es-PE');
-    }
+    // Nombre por defecto: el mismo que llevará el PDF generado
+    if (!current.name) current.name = PDFGen.docName();
     current.savedAt = new Date().toISOString();
     if (current._idx == null) {
       current._idx = store.sheets.length;
@@ -351,9 +563,9 @@
     } else {
       store.sheets[current._idx] = current;
     }
-    store.header = Object.assign({}, current.header, { signature: current.signature });
     persist();
-    refreshSheetSelect();
+    sinGuardar = false;
+    updateCurrentName();
     toast('Planilla guardada');
   }
 
@@ -363,24 +575,143 @@
     current = JSON.parse(JSON.stringify(s));
     current._idx = idx;
     writeHeader(current.header);
-    const sig = current.signature || {};
-    $('sigMethod').value = sig.method || 'none';
-    sigDataUrl = sig.dataUrl || null;
-    $('sigText').value = sig.text || '';
-    applySignatureUI();
+    firmaPlanilla.set(current.signature);
     if (!current.rows) current.rows = [];
     for (let i = 0; i < ROWS; i++) if (!current.rows[i]) current.rows[i] = {};
     renderRows();
+    sinGuardar = false;
+    showEditor();
   }
 
-  function deleteSheet() {
-    if (current._idx == null) { newSheet(); return; }
-    if (!confirm('¿Eliminar esta planilla guardada?')) return;
-    store.sheets.splice(current._idx, 1);
+  // ---------------- Lista de planillas guardadas ----------------
+  // Cuenta los días con algún dato registrado
+  function diasConDatos(s) {
+    return (s.rows || []).filter(r => r && Object.values(r).some(v => String(v || '').trim() !== '')).length;
+  }
+
+  function fechaGuardado(s) {
+    if (!s.savedAt) return 'sin fecha';
+    const d = new Date(s.savedAt);
+    return isNaN(d) ? 'sin fecha' : d.toLocaleDateString('es-PE');
+  }
+
+  function renderSheetList() {
+    const cont = $('sheetList');
+    cont.innerHTML = '';
+    if (!store.sheets.length) {
+      cont.innerHTML = '<div class="home-empty">No hay planillas guardadas.</div>';
+      return;
+    }
+    store.sheets.forEach((s, idx) => {
+      const meta = [
+        (s.header && s.header.mes) ? s.header.mes : null,
+        `${diasConDatos(s)} día(s) con datos`,
+        `guardada el ${fechaGuardado(s)}`
+      ].filter(Boolean).join(' · ');
+
+      const item = document.createElement('div');
+      item.className = 'sheet-item';
+      item.dataset.idx = idx;
+      item.tabIndex = 0;
+      item.innerHTML =
+        `<div class="sheet-info">` +
+          `<div class="sheet-name"></div>` +
+          `<div class="sheet-meta"></div>` +
+        `</div>` +
+        `<div class="sheet-actions">` +
+          `<button class="btn btn-sm btn-primary" data-act="open">Abrir</button>` +
+          `<span class="sep"></span>` +
+          `<button class="btn btn-sm btn-icon" data-act="rename" title="Renombrar"><i class="icon-pencil"></i></button>` +
+          `<button class="btn btn-sm btn-icon" data-act="dup" title="Duplicar"><i class="icon-copy"></i></button>` +
+          `<button class="btn btn-sm btn-icon btn-danger" data-act="del" title="Eliminar"><i class="icon-trash-2"></i></button>` +
+        `</div>`;
+      // textContent evita que un nombre con < > rompa el marcado
+      item.querySelector('.sheet-name').textContent = s.name || `Planilla ${idx + 1}`;
+      item.querySelector('.sheet-meta').textContent = meta;
+      cont.appendChild(item);
+    });
+  }
+
+  function onSheetListClick(e) {
+    const item = e.target.closest('.sheet-item');
+    if (!item) return;
+    const idx = +item.dataset.idx;
+    const btn = e.target.closest('button[data-act]');
+    // Clic en cualquier parte de la tarjeta (salvo botones o el campo de
+    // renombrado) equivale a abrir la planilla.
+    if (!btn) {
+      if (!e.target.closest('input')) loadSheet(idx);
+      return;
+    }
+    const acciones = {
+      open: () => loadSheet(idx),
+      rename: () => startRename(item, idx),
+      dup: () => duplicateSheet(idx),
+      del: () => deleteSheetAt(idx)
+    };
+    (acciones[btn.dataset.act] || (() => {}))();
+  }
+
+  // Renombrar en línea: el nombre se vuelve un campo editable
+  function startRename(item, idx) {
+    const cont = item.querySelector('.sheet-name');
+    if (cont.querySelector('input')) return;
+    const actual = store.sheets[idx].name || '';
+    cont.innerHTML = '';
+    const input = document.createElement('input');
+    input.className = 'sheet-rename';
+    input.type = 'text';
+    input.value = actual;
+    cont.appendChild(input);
+    input.focus();
+    input.select();
+
+    let cerrado = false;
+    const confirmar = (guardar) => {
+      if (cerrado) return;
+      cerrado = true;
+      const nuevo = input.value.trim();
+      if (guardar && nuevo && nuevo !== actual) {
+        store.sheets[idx].name = nuevo;
+        if (current && current._idx === idx) { current.name = nuevo; updateCurrentName(); }
+        persist();
+        toast('Planilla renombrada');
+      }
+      renderSheetList();
+    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') confirmar(true);
+      if (ev.key === 'Escape') confirmar(false);
+    });
+    input.addEventListener('blur', () => confirmar(true));
+  }
+
+  function duplicateSheet(idx) {
+    const copia = JSON.parse(JSON.stringify(store.sheets[idx]));
+    copia.name = (copia.name || `Planilla ${idx + 1}`) + ' (copia)';
+    copia.savedAt = new Date().toISOString();
+    delete copia._idx;
+    store.sheets.splice(idx + 1, 0, copia);
+    // el índice de la planilla abierta puede haberse desplazado
+    if (current && current._idx != null && current._idx > idx) current._idx++;
     persist();
-    refreshSheetSelect();
-    if (store.sheets.length) loadSheet(0); else newSheet();
+    renderSheetList();
+    toast('Planilla duplicada');
+  }
+
+  function deleteSheetAt(idx) {
+    const s = store.sheets[idx];
+    if (!confirm(`¿Eliminar "${s.name || 'esta planilla'}"? No se puede deshacer.`)) return;
+    store.sheets.splice(idx, 1);
+    // reajusta el índice de la planilla abierta
+    if (current && current._idx != null) {
+      if (current._idx === idx) current._idx = null;      // pasa a ser no guardada
+      else if (current._idx > idx) current._idx--;
+    }
+    persist();
     toast('Planilla eliminada');
+    if (store.sheets.length) renderSheetList();
+    else showHome(false); // sin planillas: vuelve al nivel 1
   }
 
   // ---------------- Operaciones sobre filas ----------------
@@ -434,10 +765,12 @@
     lastBlobUrl = url;
   }
 
-  // Vista previa automática (con retraso para no regenerar el PDF en cada tecla)
+  // Vista previa automática (con retraso para no regenerar el PDF en cada tecla).
+  // Solo se ejecuta dentro del editor: en la pantalla de inicio no hay nada que mostrar.
   let previewTimer = null;
   function scheduleLivePreview() {
     clearTimeout(previewTimer);
+    if (!enEditor) return;
     previewTimer = setTimeout(() => { preview().catch(() => {}); }, 400);
   }
 
@@ -454,36 +787,32 @@
   // ---------------- Init ----------------
   async function init() {
     buildTable();
-    initSignature();
+    // Dos instancias del mismo control: la de la planilla marca cambios
+    // pendientes; la de Configuración se guarda sola.
+    firmaPlanilla = crearControlFirma('sig', scheduleAutosaveHeader);
+    firmaDefecto = crearControlFirma('dsig', guardarDefaults);
 
-    // Botones
-    $('btnNew').addEventListener('click', newSheet);
+    // Editor
     $('btnSave').addEventListener('click', saveSheet);
-    $('btnDelete').addEventListener('click', deleteSheet);
+    $('btnHome').addEventListener('click', goHome);
     $('btnClearRows').addEventListener('click', clearRows);
-    $('sheetSelect').addEventListener('change', (e) => loadSheet(+e.target.value));
     HEADER_IDS.forEach(id => $(id).addEventListener('input', scheduleAutosaveHeader));
+
+    // Pantalla de inicio
+    $('cardNew').addEventListener('click', newSheet);
+    $('cardOpen').addEventListener('click', () => showHome(true));
+    $('btnBackChoice').addEventListener('click', () => showHome(false));
+    $('sheetList').addEventListener('click', onSheetListClick);
+
+    initSettings();
 
     // Carga persistencia
     store = await window.api.loadData();
-    if (!store.header) store.header = {};
     if (!store.sheets) store.sheets = [];
+    if (!store.settings) store.settings = {};
 
-    refreshSheetSelect();
-    if (store.sheets.length) {
-      loadSheet(store.sheets.length - 1);
-      $('sheetSelect').value = current._idx;
-    } else {
-      newSheet();
-    }
-    // aplica firma guardada globalmente si es planilla nueva
-    if (current._idx == null && store.header.signature) {
-      const s = store.header.signature;
-      $('sigMethod').value = s.method || 'none';
-      sigDataUrl = s.dataUrl || null;
-      $('sigText').value = s.text || '';
-      applySignatureUI();
-    }
+    applyTheme();     // antes de mostrar nada, para evitar un parpadeo de color
+    showHome(false);  // la app siempre arranca en el inicio
   }
 
   window.addEventListener('DOMContentLoaded', init);

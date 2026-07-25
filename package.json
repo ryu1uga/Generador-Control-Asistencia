@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Aplicativo de escritorio para llenar e imprimir el Registro de Control de Asistencia en PDF",
   "main": "main.js",
-  "license": "MIT",
+  "private": true,
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win"
@@ -26,11 +26,15 @@
     ],
     "win": {
       "target": "nsis",
+      "icon": "assets/icon.ico",
       "artifactName": "Control-Asistencia-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true
     }
   }
 }

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="f" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF9A31"/><stop offset="1" stop-color="#E9600F"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#f)"/>
+  <!-- Versión simplificada: hoja más grande, solo 2 barras muy gruesas -->
+  <rect x="86" y="70" width="286" height="316" rx="30" fill="#FFFFFF"/>
+  <g fill="#F26F21">
+    <rect x="132" y="146" width="76" height="42" rx="12"/>
+    <rect x="132" y="238" width="76" height="42" rx="12"/>
+  </g>
+  <g fill="#CBD0D8">
+    <rect x="228" y="146" width="102" height="42" rx="12"/>
+    <rect x="228" y="238" width="102" height="42" rx="12"/>
+  </g>
+  <!-- Reloj proporcionalmente mayor y con anillo de separación grueso -->
+  <circle cx="368" cy="382" r="122" fill="url(#f)"/>
+  <circle cx="368" cy="382" r="96" fill="#FFFFFF"/>
+  <g stroke="#E9600F" stroke-width="26" stroke-linecap="round" fill="none">
+    <path d="M368 382 V 322"/><path d="M368 382 H 416"/>
+  </g>
+</svg>
