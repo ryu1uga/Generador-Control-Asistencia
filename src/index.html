@@ -22,8 +22,92 @@
       <button id="btnSave" class="btn btn-primary hidden">
         <i class="icon-save"></i> Guardar
       </button>
+      <button id="btnSettings" class="btn btn-icon" title="Configuración">
+        <i class="icon-settings"></i>
+      </button>
     </div>
   </header>
+
+  <!-- Configuración -->
+  <div id="settingsModal" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-labelledby="settingsTitle">
+      <div class="modal-head">
+        <span class="modal-title" id="settingsTitle">Configuración</span>
+        <button id="btnCloseSettings" class="btn btn-icon btn-sm" title="Cerrar">
+          <i class="icon-x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="set-row">
+          <span class="set-label">Tema</span>
+          <div class="segmented" id="themeSeg">
+            <button class="seg-opt" data-theme-opt="light">
+              <i class="icon-sun"></i> Claro
+            </button>
+            <button class="seg-opt" data-theme-opt="dark">
+              <i class="icon-moon"></i> Oscuro
+            </button>
+            <button class="seg-opt" data-theme-opt="system">
+              <i class="icon-monitor"></i> Sistema
+            </button>
+          </div>
+          <span class="set-desc">«Sistema» sigue la apariencia de Windows.</span>
+        </div>
+
+        <hr class="set-sep" />
+
+        <div class="set-row">
+          <span class="set-label">Datos por defecto</span>
+          <span class="set-desc">
+            Se aplican a cada planilla nueva. Deja los campos vacíos para empezar en blanco.
+            El mes no se hereda: se escribe en cada planilla.
+          </span>
+          <div class="grid2 set-grid">
+            <label>Apellidos y Nombres
+              <input id="defNombres" type="text" placeholder="Apellidos, Nombres" />
+            </label>
+            <label>Dependencia
+              <input id="defDependencia" type="text" placeholder="Área o dependencia" />
+            </label>
+            <label>Código
+              <input id="defCodigo" type="text" placeholder="Código o N° de documento" />
+            </label>
+            <label>Horas Semanales
+              <input id="defHorasSemanales" type="text" placeholder="30" />
+            </label>
+          </div>
+        </div>
+
+        <div class="set-row set-row-gap">
+          <span class="set-label">Firma por defecto</span>
+          <label>Método
+            <select id="dsigMethod">
+              <option value="none">Sin firma</option>
+              <option value="image">Imagen de firma (subir PNG/JPG)</option>
+              <option value="draw">Dibujar firma en pantalla</option>
+              <option value="text">Texto (nombre)</option>
+            </select>
+          </label>
+          <div id="dsigImageBox" class="sig-opt hidden">
+            <input id="dsigFile" type="file" accept="image/png,image/jpeg" />
+          </div>
+          <div id="dsigTextBox" class="sig-opt hidden">
+            <input id="dsigText" type="text" placeholder="Nombre o iniciales" />
+          </div>
+          <div id="dsigDrawBox" class="sig-opt hidden">
+            <canvas id="dsigCanvas" width="360" height="90"></canvas>
+            <div class="sig-draw-actions">
+              <button id="dsigClear" class="btn btn-ghost btn-sm">Borrar</button>
+              <span class="hint">Dibuja con el mouse dentro del recuadro.</span>
+            </div>
+          </div>
+          <div id="dsigPreview" class="sig-preview hidden">
+            <span>Vista previa:</span> <img id="dsigPreviewImg" alt="firma por defecto" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Pantalla de inicio -->
   <section id="homeView" class="home">
@@ -77,7 +161,7 @@
             <input id="horasSemanales" type="text" placeholder="30" />
           </label>
         </div>
-        <p class="hint">Se recuerda para las próximas planillas.</p>
+        <p class="hint">Los valores iniciales se definen en Configuración.</p>
       </fieldset>
 
       <fieldset class="card">
@@ -101,7 +185,7 @@
         <div id="sigDrawBox" class="sig-opt hidden">
           <canvas id="sigCanvas" width="360" height="90"></canvas>
           <div class="sig-draw-actions">
-            <button id="btnClearSig" class="btn btn-ghost btn-sm">Borrar</button>
+            <button id="sigClear" class="btn btn-ghost btn-sm">Borrar</button>
             <span class="hint">Dibuja con el mouse dentro del recuadro.</span>
           </div>
         </div>

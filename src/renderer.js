@@ -240,70 +240,175 @@
     HEADER_IDS.forEach(id => $(id).value = (h && h[id]) || '');
   }
 
-  let autosaveTimer = null;
+  // Cualquier edición del editor: marca cambios pendientes y refresca el PDF.
+  // La cabecera ya no se recuerda sola; sus valores iniciales salen de
+  // Configuración y lo demás se conserva al pulsar Guardar.
   function scheduleAutosaveHeader() {
-    clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(() => {
-      store.header = readHeader();          // recuerda la cabecera globalmente
-      store.header.signature = getSignature();
-      persist();
-    }, 500);
     marcarSinGuardar();
-    scheduleLivePreview(); // refresca la vista previa al cambiar cabecera/celdas/firma
+    scheduleLivePreview();
   }
 
   // ---------------- Firma ----------------
-  let sigDataUrl = null;
+  // Control reutilizable: el mismo bloque sirve para la planilla ('sig') y
+  // para la firma por defecto de Configuración ('dsig'). `alCambiar` avisa
+  // al contenedor para que marque cambios o persista, según el caso.
+  function crearControlFirma(p, alCambiar) {
+    const el = (sufijo) => $(p + sufijo);
+    let dataUrl = null;
 
-  function getSignature() {
-    return { method: $('sigMethod').value, dataUrl: sigDataUrl, text: $('sigText').value.trim() };
-  }
-  function applySignatureUI() {
-    const m = $('sigMethod').value;
-    $('sigImageBox').classList.toggle('hidden', m !== 'image');
-    $('sigDrawBox').classList.toggle('hidden', m !== 'draw');
-    $('sigTextBox').classList.toggle('hidden', m !== 'text');
-    const showPrev = (m === 'image' || m === 'draw') && sigDataUrl;
-    $('sigPreview').classList.toggle('hidden', !showPrev);
-    if (showPrev) $('sigPreviewImg').src = sigDataUrl;
-  }
+    function get() {
+      return { method: el('Method').value, dataUrl, text: el('Text').value.trim() };
+    }
 
-  function initSignature() {
-    $('sigMethod').addEventListener('change', () => { applySignatureUI(); scheduleAutosaveHeader(); });
-    $('sigText').addEventListener('input', scheduleAutosaveHeader);
-    $('sigFile').addEventListener('change', (e) => {
+    function set(sig) {
+      sig = sig || {};
+      el('Method').value = sig.method || 'none';
+      dataUrl = sig.dataUrl || null;
+      el('Text').value = sig.text || '';
+      limpiarLienzo();
+      if (dataUrl && sig.method === 'draw') pintarEnLienzo(dataUrl);
+      applyUI();
+    }
+
+    function applyUI() {
+      const m = el('Method').value;
+      el('ImageBox').classList.toggle('hidden', m !== 'image');
+      el('DrawBox').classList.toggle('hidden', m !== 'draw');
+      el('TextBox').classList.toggle('hidden', m !== 'text');
+      const verPrev = (m === 'image' || m === 'draw') && dataUrl;
+      el('Preview').classList.toggle('hidden', !verPrev);
+      if (verPrev) el('PreviewImg').src = dataUrl;
+    }
+
+    const notificar = () => { applyUI(); if (alCambiar) alCambiar(); };
+
+    function limpiarLienzo() {
+      const c = el('Canvas');
+      c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    }
+    // Restaura un dibujo guardado dentro del lienzo al reabrir
+    function pintarEnLienzo(url) {
+      const c = el('Canvas'), img = new Image();
+      img.onload = () => c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      img.src = url;
+    }
+
+    el('Method').addEventListener('change', notificar);
+    el('Text').addEventListener('input', () => { if (alCambiar) alCambiar(); });
+    el('File').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => { sigDataUrl = reader.result; applySignatureUI(); scheduleAutosaveHeader(); };
+      reader.onload = () => { dataUrl = reader.result; notificar(); };
       reader.readAsDataURL(file);
     });
-    initCanvas();
-    $('btnClearSig').addEventListener('click', () => {
-      const c = $('sigCanvas'); c.getContext('2d').clearRect(0, 0, c.width, c.height);
-      sigDataUrl = null; applySignatureUI(); scheduleAutosaveHeader();
-    });
-  }
+    el('Clear').addEventListener('click', () => { limpiarLienzo(); dataUrl = null; notificar(); });
 
-  function initCanvas() {
-    const c = $('sigCanvas');
+    // Dibujo con el mouse
+    const c = el('Canvas');
     const ctx = c.getContext('2d');
     ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
-    let drawing = false;
+    let trazando = false;
     const pos = (e) => {
       const r = c.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+      return { x: (e.clientX - r.left) * (c.width / r.width),
+               y: (e.clientY - r.top) * (c.height / r.height) };
     };
-    c.addEventListener('mousedown', (e) => { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
-    c.addEventListener('mousemove', (e) => { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    c.addEventListener('mousedown', (e) => { trazando = true; const q = pos(e); ctx.beginPath(); ctx.moveTo(q.x, q.y); });
+    c.addEventListener('mousemove', (e) => { if (!trazando) return; const q = pos(e); ctx.lineTo(q.x, q.y); ctx.stroke(); });
     window.addEventListener('mouseup', () => {
-      if (!drawing) return; drawing = false;
-      sigDataUrl = c.toDataURL('image/png'); applySignatureUI(); scheduleAutosaveHeader();
+      if (!trazando) return; trazando = false;
+      dataUrl = c.toDataURL('image/png'); notificar();
     });
+
+    return { get, set, applyUI };
   }
+
+  let firmaPlanilla = null;   // firma de la planilla abierta
+  let firmaDefecto = null;    // firma por defecto (Configuración)
+
+  const getSignature = () => firmaPlanilla.get();
 
   // ---------------- Planillas (persistencia) ----------------
   function persist() { window.api.saveData(store); }
+
+  // ---------------- Tema ----------------
+  // 'light' | 'dark' | 'system'. En 'system' se sigue la apariencia del SO.
+  const consultaOscuro = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function temaElegido() {
+    return (store.settings && store.settings.theme) || 'system';
+  }
+
+  function applyTheme() {
+    const elegido = temaElegido();
+    const efectivo = elegido === 'system'
+      ? (consultaOscuro.matches ? 'dark' : 'light')
+      : elegido;
+    document.documentElement.setAttribute('data-theme', efectivo);
+    document.querySelectorAll('#themeSeg .seg-opt').forEach(b => {
+      b.classList.toggle('active', b.dataset.themeOpt === elegido);
+    });
+  }
+
+  function setTheme(valor) {
+    if (!store.settings) store.settings = {};
+    store.settings.theme = valor;
+    persist();
+    applyTheme();
+  }
+
+  // ---------------- Datos por defecto ----------------
+  // El mes queda fuera a propósito: es propio de cada planilla.
+  const DEFAULT_IDS = ['nombres', 'dependencia', 'codigo', 'horasSemanales'];
+  const idDefecto = (campo) => 'def' + campo.charAt(0).toUpperCase() + campo.slice(1);
+
+  function leerDefaults() {
+    const d = {};
+    DEFAULT_IDS.forEach(c => { d[c] = $(idDefecto(c)).value.trim(); });
+    d.signature = firmaDefecto.get();
+    return d;
+  }
+
+  function escribirDefaults() {
+    const d = (store.settings && store.settings.defaults) || {};
+    DEFAULT_IDS.forEach(c => { $(idDefecto(c)).value = d[c] || ''; });
+    firmaDefecto.set(d.signature);
+  }
+
+  let defaultsTimer = null;
+  function guardarDefaults() {
+    clearTimeout(defaultsTimer);
+    defaultsTimer = setTimeout(() => {
+      if (!store.settings) store.settings = {};
+      store.settings.defaults = leerDefaults();
+      persist();
+    }, 400);
+  }
+
+  function initSettings() {
+    const modal = $('settingsModal');
+    const abrir = () => { modal.classList.remove('hidden'); applyTheme(); escribirDefaults(); };
+    const cerrar = () => modal.classList.add('hidden');
+
+    DEFAULT_IDS.forEach(c => $(idDefecto(c)).addEventListener('input', guardarDefaults));
+
+    $('btnSettings').addEventListener('click', abrir);
+    $('btnCloseSettings').addEventListener('click', cerrar);
+    // Clic fuera del cuadro o Escape para cerrar
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) cerrar();
+    });
+    $('themeSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-theme-opt]');
+      if (b) setTheme(b.dataset.themeOpt);
+    });
+    // Si el tema es 'system', seguir los cambios del SO en caliente
+    consultaOscuro.addEventListener('change', () => {
+      if (temaElegido() === 'system') applyTheme();
+    });
+  }
 
   // ---------------- Navegación entre vistas ----------------
   const SUBTITULO = 'Generador de planillas en PDF';
@@ -367,23 +472,18 @@
     showHome(false);
   }
 
+  // Planilla nueva: parte de los valores definidos en Configuración.
+  // Si no hay ninguno, todo queda en blanco (firma incluida). El mes nunca
+  // se hereda porque es propio de cada planilla.
   function newSheet() {
-    current = {
-      name: '',
-      header: Object.assign({}, store.header),
-      rows: [],
-      _idx: null
-    };
-    delete current.header.signature;
-    writeHeader(current.header);
-    // restaura firma global
-    if (store.header && store.header.signature) {
-      const s = store.header.signature;
-      $('sigMethod').value = s.method || 'none';
-      sigDataUrl = s.dataUrl || null;
-      $('sigText').value = s.text || '';
-    }
-    applySignatureUI();
+    const def = (store.settings && store.settings.defaults) || {};
+    const header = {};
+    DEFAULT_IDS.forEach(c => { header[c] = def[c] || ''; });
+    header.mes = '';
+
+    current = { name: '', header, rows: [], _idx: null };
+    writeHeader(header);
+    firmaPlanilla.set(def.signature);
     for (let i = 0; i < ROWS; i++) current.rows[i] = {};
     renderRows();
     sinGuardar = false;
@@ -402,7 +502,6 @@
     } else {
       store.sheets[current._idx] = current;
     }
-    store.header = Object.assign({}, current.header, { signature: current.signature });
     persist();
     sinGuardar = false;
     updateCurrentName();
@@ -415,11 +514,7 @@
     current = JSON.parse(JSON.stringify(s));
     current._idx = idx;
     writeHeader(current.header);
-    const sig = current.signature || {};
-    $('sigMethod').value = sig.method || 'none';
-    sigDataUrl = sig.dataUrl || null;
-    $('sigText').value = sig.text || '';
-    applySignatureUI();
+    firmaPlanilla.set(current.signature);
     if (!current.rows) current.rows = [];
     for (let i = 0; i < ROWS; i++) if (!current.rows[i]) current.rows[i] = {};
     renderRows();
@@ -631,7 +726,10 @@
   // ---------------- Init ----------------
   async function init() {
     buildTable();
-    initSignature();
+    // Dos instancias del mismo control: la de la planilla marca cambios
+    // pendientes; la de Configuración se guarda sola.
+    firmaPlanilla = crearControlFirma('sig', scheduleAutosaveHeader);
+    firmaDefecto = crearControlFirma('dsig', guardarDefaults);
 
     // Editor
     $('btnSave').addEventListener('click', saveSheet);
@@ -645,12 +743,15 @@
     $('btnBackChoice').addEventListener('click', () => showHome(false));
     $('sheetList').addEventListener('click', onSheetListClick);
 
+    initSettings();
+
     // Carga persistencia
     store = await window.api.loadData();
-    if (!store.header) store.header = {};
     if (!store.sheets) store.sheets = [];
+    if (!store.settings) store.settings = {};
 
-    showHome(false); // la app siempre arranca en el inicio
+    applyTheme();     // antes de mostrar nada, para evitar un parpadeo de color
+    showHome(false);  // la app siempre arranca en el inicio
   }
 
   window.addEventListener('DOMContentLoaded', init);
