@@ -386,12 +386,73 @@
     }, 400);
   }
 
+  // ---------------- Copia de seguridad ----------------
+  const BACKUP_APP = 'control-asistencia';
+
+  async function exportarCopia() {
+    const copia = {
+      app: BACKUP_APP,
+      formato: 1,
+      exportadoEl: new Date().toISOString(),
+      datos: { sheets: store.sheets, settings: store.settings }
+    };
+    const res = await window.api.exportBackup(JSON.stringify(copia, null, 2));
+    if (res.ok) toast('Copia guardada');
+    else if (res.error) alert('No se pudo guardar la copia: ' + res.error);
+  }
+
+  // Acepta el formato con envoltorio y también un archivo de datos plano
+  function extraerDatos(texto) {
+    let obj;
+    try { obj = JSON.parse(texto); }
+    catch (e) { throw new Error('El archivo no es un JSON válido.'); }
+    const datos = (obj && obj.datos) ? obj.datos : obj;
+    if (!datos || typeof datos !== 'object' || !Array.isArray(datos.sheets)) {
+      throw new Error('El archivo no parece una copia de esta aplicación.');
+    }
+    return {
+      sheets: datos.sheets,
+      settings: (datos.settings && typeof datos.settings === 'object') ? datos.settings : {}
+    };
+  }
+
+  async function importarCopia() {
+    const res = await window.api.importBackup();
+    if (!res.ok) {
+      if (res.error) alert('No se pudo leer el archivo: ' + res.error);
+      return;
+    }
+    let datos;
+    try { datos = extraerDatos(res.contenido); }
+    catch (e) { alert(e.message); return; }
+
+    const actuales = store.sheets.length;
+    const entrantes = datos.sheets.length;
+    const aviso = actuales
+      ? `Se reemplazarán todas las planillas actuales por las planillas entrantes del archivo. Esto no se puede deshacer.\n\n¿Continuar?`
+      : `Se importarán ${entrantes} planilla(s). ¿Continuar?`;
+    if (!confirm(aviso)) return;
+
+    store.sheets = datos.sheets;
+    store.settings = datos.settings;
+    current = null;
+    sinGuardar = false;
+    persist();
+
+    applyTheme();
+    escribirDefaults();
+    showHome(false);
+    toast(`Copia importada: ${entrantes} planilla(s)`);
+  }
+
   function initSettings() {
     const modal = $('settingsModal');
     const abrir = () => { modal.classList.remove('hidden'); applyTheme(); escribirDefaults(); };
     const cerrar = () => modal.classList.add('hidden');
 
     DEFAULT_IDS.forEach(c => $(idDefecto(c)).addEventListener('input', guardarDefaults));
+    $('btnExport').addEventListener('click', () => exportarCopia().catch(e => alert(e.message)));
+    $('btnImport').addEventListener('click', () => importarCopia().catch(e => alert(e.message)));
 
     $('btnSettings').addEventListener('click', abrir);
     $('btnCloseSettings').addEventListener('click', cerrar);

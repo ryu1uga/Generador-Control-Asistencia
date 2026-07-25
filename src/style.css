@@ -174,6 +174,7 @@ select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
 .set-desc { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
 .set-sep { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
 .set-grid { margin-top: 2px; }
+.set-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 .modal .sig-opt { margin-top: 0; }
 .modal #dsigCanvas { width: 100%; }
 /* Control segmentado del tema */

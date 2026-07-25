@@ -118,6 +118,17 @@ Si dejas estos campos vacíos, cada planilla nueva empieza completamente en blan
 sin firma. El **mes no se puede fijar aquí a propósito**, porque cambia en cada
 planilla.
 
+**Copia de seguridad** — sirve para llevarte tus planillas a otra computadora o
+para no perderlas si formateas.
+
+- **Exportar copia** genera un archivo `.json` con todas tus planillas y ajustes.
+  Elige dónde guardarlo (por ejemplo, una memoria USB o tu carpeta de Documentos).
+- **Importar copia** abre ese archivo y restaura todo.
+
+> **Cuidado:** al importar se **reemplaza** todo lo que tengas en ese momento; no
+> se mezclan las planillas. El programa te dirá cuántas vas a perder y cuántas vas
+> a recibir antes de hacerlo, y puedes cancelar.
+
 Todo se guarda automáticamente al escribir; no hay botón de confirmar.
 
 ## Preguntas frecuentes
@@ -128,6 +139,10 @@ ahí aunque muevas o actualices la aplicación.
 
 **¿Puedo tener varias planillas a la vez?**
 Sí, las que quieras. Se listan en *Abrir existente*.
+
+**Voy a usar el programa en otra computadora, ¿pierdo mis planillas?**
+No, si las exportas antes. En Configuración usa *Exportar copia*, lleva el archivo
+`.json` a la otra computadora y ahí usa *Importar copia*.
 
 **¿Y si necesito más de 23 días?**
 No es posible: el formato oficial tiene exactamente 23 filas y el programa lo
@@ -221,6 +236,8 @@ no tiene acceso directo a Node. Todo pasa por los tres canales de `preload.js`:
 | `get-template` | renderer → main | Devuelve `assets/template.pdf` en base64 |
 | `load-data` | renderer → main | Lee las planillas y ajustes guardados |
 | `save-data` | renderer → main | Escribe las planillas y ajustes |
+| `export-backup` | renderer → main | Diálogo de guardado y escritura del `.json` de copia |
+| `import-backup` | renderer → main | Diálogo de apertura y lectura del `.json` de copia |
 
 ## Cómo se genera el PDF
 
@@ -296,6 +313,23 @@ Todo se guarda en un único JSON dentro de la carpeta `userData` de Electron
 
 Cambiar el `productName` de `package.json` mueve esta carpeta y las planillas
 dejarían de aparecer. Si se renombra el producto, hay que migrar el archivo.
+
+### Formato de la copia de seguridad
+
+*Exportar copia* escribe el mismo contenido dentro de un envoltorio con metadatos:
+
+```jsonc
+{
+  "app": "control-asistencia",
+  "formato": 1,
+  "exportadoEl": "2026-07-24T21:00:00.000Z",
+  "datos": { "sheets": [ /* ... */ ], "settings": { /* ... */ } }
+}
+```
+
+Al importar, `extraerDatos()` acepta tanto ese envoltorio como un archivo de datos
+plano, y rechaza cualquier JSON que no tenga `sheets` como arreglo. La importación
+**reemplaza** el estado completo; no fusiona planillas.
 
 ## Detalles de implementación
 
