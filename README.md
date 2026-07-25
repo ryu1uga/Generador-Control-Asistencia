@@ -196,13 +196,36 @@ npm install       # descarga Electron y las dependencias
 npm start         # abre la aplicación
 ```
 
-### Generar el instalador para Windows
+### Generar el instalador
 
 ```bash
-npm run dist
+npm run dist          # compila para el sistema donde lo ejecutas
+npm run dist:win      # fuerza Windows
+npm run dist:mac      # fuerza macOS (solo funciona en una Mac)
 ```
 
-El resultado queda en `dist/` como `Control-Asistencia-Setup-1.0.0.exe`.
+| Sistema | Resultado en `dist/` |
+|---|---|
+| Windows | `Control-Asistencia-Setup-1.0.0.exe` (instalador NSIS) |
+| macOS | `Control-Asistencia-1.0.0-x64.dmg` y `-arm64.dmg` |
+
+**El empaquetado de macOS solo puede hacerse desde una Mac.** electron-builder
+necesita herramientas del propio sistema, así que `dist:mac` fallará en Windows.
+Si no tienes acceso a una, GitHub Actions ofrece máquinas macOS gratuitas para
+repositorios públicos.
+
+### Distribución sin firma digital
+
+Ninguno de los dos instaladores está firmado, y cada sistema reacciona distinto:
+
+- **Windows** muestra SmartScreen (*"Windows protegió su PC"*). Se continúa con
+  **Más información** → **Ejecutar de todas formas**.
+- **macOS** es más estricto: dice que la app *"está dañada"*, lo cual es
+  engañoso. Se abre con clic derecho → **Abrir**, o quitando la marca de
+  cuarentena con `xattr -dr com.apple.quarantine "/Applications/Control de Asistencia.app"`.
+
+Evitarlo requiere un certificado de firma (Windows) o una cuenta de Apple
+Developer y notarización (macOS).
 
 > Si `npm install` termina pero la app no arranca con el error *"Electron failed
 > to install correctly"*, el binario de Electron se descargó a medias. Borra
@@ -269,6 +292,11 @@ Generador-Control-Asistencia/
 ├─ preload.js            Puente seguro renderer ↔ main (window.api)
 ├─ assets/
 │  └─ template.pdf       Formato oficial en blanco (sin anotaciones)
+├─ assets/
+│  ├─ icon.svg           Fuente del icono (48px en adelante)
+│  ├─ icon-small.svg     Variante simplificada (16–32px)
+│  ├─ icon.ico           Icono de Windows (7 resoluciones)
+│  └─ icon.icns          Icono de macOS (10 resoluciones)
 └─ src/
    ├─ index.html         Marcado: inicio, editor y modal de configuración
    ├─ style.css          Estilos y variables de tema (claro / oscuro)
@@ -282,8 +310,13 @@ Generador-Control-Asistencia/
 
 ## Almacenamiento
 
-Todo se guarda en un único JSON dentro de la carpeta `userData` de Electron
-(en Windows, `%APPDATA%\Control de Asistencia\control-asistencia-data.json`):
+Todo se guarda en un único JSON dentro de la carpeta `userData` de Electron:
+
+| Sistema | Ruta |
+|---|---|
+| Windows | `%APPDATA%\Control de Asistencia\control-asistencia-data.json` |
+| macOS | `~/Library/Application Support/Control de Asistencia/control-asistencia-data.json` |
+
 
 ```jsonc
 {
@@ -353,3 +386,13 @@ dentro del arreglo y vuelve a pintar la tabla, en lugar de mover nodos del DOM.
 
 **Formatos de hora aceptados.** `parseTime()` entiende `09:00`, `9`, `0900` y
 `9.5` (decimal de hora). Al salir del campo, el valor se normaliza a `HH:mm`.
+
+**Diferencias entre sistemas.** `main.js` concentra las ramas en la constante
+`esMac`. En Windows la barra de menús se oculta y el icono se toma del `.ico`; en
+macOS la barra es global —no se puede ocultar por ventana—, así que se instala un
+menú mínimo en español, el icono lo aporta el paquete `.app`, y cerrar la última
+ventana no cierra la aplicación, como manda la convención del sistema.
+
+**Iconos.** Ambos formatos se generan desde los mismos SVG. El `.ico` y el `.icns`
+incluyen dos diseños distintos: el detallado a partir de 48px y uno simplificado
+en 16–32px, porque a esos tamaños las tres filas de la hoja se vuelven ilegibles.
