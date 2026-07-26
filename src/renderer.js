@@ -54,6 +54,67 @@
     const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? `${m[3]}-${m[2]}-${m[1]}` : iso;
   }
+
+  // ---------------- Meses escritos en la cabecera ----------------
+  // Cada mes lista sus formas aceptadas. Se incluye "setiembre", grafía
+  // habitual en Perú, además de "septiembre".
+  const MESES = [
+    ['enero', 'ene'],
+    ['febrero', 'feb'],
+    ['marzo', 'mar'],
+    ['abril', 'abr'],
+    ['mayo', 'may'],
+    ['junio', 'jun'],
+    ['julio', 'jul'],
+    ['agosto', 'ago'],
+    ['septiembre', 'setiembre', 'sept', 'set', 'sep'],
+    ['octubre', 'oct'],
+    ['noviembre', 'nov'],
+    ['diciembre', 'dic']
+  ];
+
+  // Quita tildes y pasa a minúsculas para comparar sin depender de cómo se escriba.
+  // \u0300-\u036f es el rango de marcas diacríticas que separa normalize('NFD').
+  function normalizar(txt) {
+    return String(txt).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  // Lee el campo "Mes" y devuelve los periodos detectados, en orden de aparición.
+  // "Julio - Agosto"  -> [{anio:2026, mes:6}, {anio:2026, mes:7}]   (mes 0-11)
+  // "Diciembre-Enero" -> diciembre de este año y enero del siguiente
+  // "Julio 2025"      -> usa el año escrito
+  function leerPeriodos(textoMes) {
+    const texto = normalizar(textoMes || '');
+    if (!texto.trim()) return [];
+
+    // Busca cada forma como palabra completa y se queda con la posición hallada
+    const hallados = [];
+    MESES.forEach((formas, indice) => {
+      for (const forma of formas) {
+        const re = new RegExp('\\b' + forma + '\\w*', 'g');
+        let m;
+        while ((m = re.exec(texto)) !== null) hallados.push({ pos: m.index, mes: indice });
+        if (hallados.some(h => h.mes === indice)) break; // basta la forma más larga
+      }
+    });
+    if (!hallados.length) return [];
+
+    hallados.sort((a, b) => a.pos - b.pos);
+    // Elimina repeticiones del mismo mes conservando el primer orden
+    const secuencia = [];
+    hallados.forEach(h => { if (!secuencia.includes(h.mes)) secuencia.push(h.mes); });
+
+    const anioEscrito = (texto.match(/\b(20\d{2})\b/) || [])[1];
+    let anio = anioEscrito ? +anioEscrito : new Date().getFullYear();
+
+    // Si el periodo cruza el fin de año, los meses posteriores al salto suman uno
+    const periodos = [];
+    secuencia.forEach((mes, i) => {
+      if (i > 0 && mes < secuencia[i - 1]) anio++;
+      periodos.push({ anio, mes });
+    });
+    return periodos;
+  }
   // minutos -> HH:mm para el <input type="time">
   function minsToHHMM(mins) {
     if (mins == null) return '';
@@ -154,6 +215,28 @@
     onPickClick(e);
   }
 
+  // Con qué fecha conviene abrir el calendario en una fila vacía.
+  // Se apoya en el campo "Mes": si dice "Julio", abre el 1 de julio. Si es un
+  // periodo compuesto ("Julio - Agosto"), mira la última fila con fecha por
+  // encima y sigue en ese mes; si no hay ninguna, usa el primero del periodo.
+  function fechaSugerida(fila) {
+    const periodos = leerPeriodos($('mes').value);
+    if (!periodos.length) return '';
+
+    let elegido = periodos[0];
+    if (periodos.length > 1) {
+      for (let i = fila - 1; i >= 0; i--) {
+        const iso = textDateToISO((current.rows[i] || {}).fecha);
+        if (!iso) continue;
+        const [a, m] = iso.split('-').map(Number);
+        const coincide = periodos.find(p => p.anio === a && p.mes === m - 1);
+        if (coincide) elegido = coincide;
+        break; // solo interesa la primera fila con fecha hacia arriba
+      }
+    }
+    return `${elegido.anio}-${String(elegido.mes + 1).padStart(2, '0')}-01`;
+  }
+
   // Abre el calendario nativo al pulsar el botón de la celda de fecha
   function onPickClick(e) {
     const btn = e.target.closest('.dt-pick');
@@ -161,7 +244,8 @@
     const cell = btn.closest('.dt-cell');
     const textEl = cell.querySelector('.dt-text');
     const nativeEl = cell.querySelector('.dt-native');
-    nativeEl.value = textDateToISO(textEl.value); // precarga lo escrito a mano
+    // Precarga lo escrito a mano; si la fila está vacía, el mes de la cabecera
+    nativeEl.value = textDateToISO(textEl.value) || fechaSugerida(+nativeEl.dataset.row);
     if (typeof nativeEl.showPicker === 'function') {
       nativeEl.showPicker();
     } else {

@@ -1,5 +1,5 @@
 // main.js — Proceso principal de Electron
-const { app, BrowserWindow, ipcMain, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, session, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -31,6 +31,8 @@ function saveData(data) {
   fs.writeFileSync(dataFile(), JSON.stringify(data, null, 2), 'utf-8');
 }
 
+const esMac = process.platform === 'darwin';
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -38,7 +40,9 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     title: 'Registro de Control de Asistencia',
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    // En Windows y Linux el icono se toma del archivo; en macOS lo aporta el
+    // paquete .app, así que ahí se omite.
+    icon: esMac ? undefined : path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -47,10 +51,54 @@ function createWindow() {
     }
   });
 
-  mainWindow.setMenuBarVisibility(false);
+  // La barra de menús de macOS es global y no se puede ocultar por ventana:
+  // allí se instala un menú mínimo (ver setupMenu). En Windows se oculta.
+  if (!esMac) mainWindow.setMenuBarVisibility(false);
   mainWindow.maximize(); // arranca ocupando toda la pantalla
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   // mainWindow.webContents.openDevTools();
+}
+
+// En macOS, sin menú propio aparece el de Electron por defecto. Este deja solo
+// lo imprescindible del sistema (ocultar, salir, copiar/pegar, zoom).
+function setupMenu() {
+  if (!esMac) return Menu.setApplicationMenu(null);
+  const nombre = app.name;
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: nombre,
+      submenu: [
+        { role: 'about', label: `Acerca de ${nombre}` },
+        { type: 'separator' },
+        { role: 'hide', label: `Ocultar ${nombre}` },
+        { role: 'hideOthers', label: 'Ocultar otros' },
+        { role: 'unhide', label: 'Mostrar todo' },
+        { type: 'separator' },
+        { role: 'quit', label: `Salir de ${nombre}` }
+      ]
+    },
+    {
+      label: 'Edición',
+      submenu: [
+        { role: 'undo', label: 'Deshacer' },
+        { role: 'redo', label: 'Rehacer' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Cortar' },
+        { role: 'copy', label: 'Copiar' },
+        { role: 'paste', label: 'Pegar' },
+        { role: 'selectAll', label: 'Seleccionar todo' }
+      ]
+    },
+    {
+      label: 'Ventana',
+      submenu: [
+        { role: 'minimize', label: 'Minimizar' },
+        { role: 'zoom', label: 'Zoom' },
+        { type: 'separator' },
+        { role: 'front', label: 'Traer todo al frente' }
+      ]
+    }
+  ]));
 }
 
 // Cuando el usuario descarga desde el visor de PDF incrustado, el archivo
@@ -68,15 +116,19 @@ function setupDownloadNaming() {
 }
 
 app.whenReady().then(() => {
+  setupMenu();
   setupDownloadNaming();
   createWindow();
+  // En macOS es normal que la app siga viva sin ventanas: al pulsar su icono
+  // en el Dock se vuelve a abrir una.
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
+// En Windows y Linux cerrar la ventana cierra la app; en macOS no.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (!esMac) app.quit();
 });
 
 // ---------- IPC ----------
