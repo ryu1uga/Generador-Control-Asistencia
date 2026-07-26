@@ -67,6 +67,17 @@ oficial). Deja vacías las que no uses.
 **Para la fecha**, puedes escribirla o pulsar el icono de calendario y elegirla de
 un calendario desplegable.
 
+El calendario se abre directamente en el mes que hayas escrito en la cabecera. Si
+pones `Julio`, se abre en el 1 de julio en lugar de en el día de hoy. Reconoce el
+mes escrito de varias formas —`julio`, `JULIO`, `jul`— y entiende tanto
+`septiembre` como `setiembre`. Si además escribes el año (`Julio 2025`) lo
+respeta; si no, asume el actual.
+
+Con un periodo de dos meses (`Julio - Agosto`) mira la fila de arriba: mientras
+vengas llenando fechas de julio abre en julio, y en cuanto una fila pase a agosto
+las siguientes se abren en agosto. Si el mes no se reconoce, se comporta como
+antes y abre en la fecha de hoy.
+
 **Para las horas**, escribe el número y el programa lo completa solo al salir del
 campo:
 
@@ -386,6 +397,14 @@ dentro del arreglo y vuelve a pintar la tabla, en lugar de mover nodos del DOM.
 
 **Formatos de hora aceptados.** `parseTime()` entiende `09:00`, `9`, `0900` y
 `9.5` (decimal de hora). Al salir del campo, el valor se normaliza a `HH:mm`.
+
+**Meses de la cabecera.** `leerPeriodos()` normaliza el texto (minúsculas y sin
+tildes) y busca las formas de `MESES`, que incluyen abreviaturas y la grafía
+`setiembre`. Devuelve los meses en orden de aparición; si la secuencia retrocede
+—`Diciembre - Enero`— asume cruce de año e incrementa el año. `fechaSugerida()`
+usa eso para preposicionar el calendario. El `<input type="date">` nativo solo
+puede abrirse en **un** mes, así que en periodos compuestos se elige mirando la
+primera fila con fecha por encima de la actual.
 
 **Diferencias entre sistemas.** `main.js` concentra las ramas en la constante
 `esMac`. En Windows la barra de menús se oculta y el icono se toma del `.ico`; en
